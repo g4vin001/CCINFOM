@@ -16,9 +16,21 @@ public class ReportService {
         }
     }
 
+    public String getMonthlySalesSummary(YearMonth period) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return reportDao.getMonthlySalesSummary(connection, period);
+        }
+    }
+
     public void printCampusGateDeliveryReport(YearMonth period) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             reportDao.printCampusGateDeliveryReport(connection, period);
+        }
+    }
+
+    public String getCampusGateDeliveryReport(YearMonth period) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return reportDao.getCampusGateDeliveryReport(connection, period);
         }
     }
 
@@ -28,9 +40,21 @@ public class ReportService {
         }
     }
 
+    public String getTopSellingItemsReport(YearMonth period) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return reportDao.getTopSellingItemsReport(connection, period);
+        }
+    }
+
     public void printOrderVolumeByTimeOfDayReport(YearMonth period) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             reportDao.printOrderVolumeByTimeOfDayReport(connection, period);
+        }
+    }
+
+    public String getOrderVolumeByTimeOfDayReport(YearMonth period) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return reportDao.getOrderVolumeByTimeOfDayReport(connection, period);
         }
     }
 }

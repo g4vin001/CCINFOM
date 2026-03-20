@@ -3,7 +3,7 @@ package com.archersground.dbapp.config;
 public final class DatabaseConfig {
     private static final String DEFAULT_URL = "jdbc:mysql://localhost:3306/archers_ground_db";
     private static final String DEFAULT_USERNAME = "root";
-    private static final String DEFAULT_PASSWORD = "password";
+    private static final String DEFAULT_PASSWORD = "root123";
 
     private DatabaseConfig() {
     }

@@ -15,7 +15,7 @@ public class MenuItemDao {
             SELECT menu_item_id, item_name, category, is_available, price
             FROM menu_items
             WHERE is_available = TRUE
-            ORDER BY item_name
+            ORDER BY menu_item_id
             """;
 
         List<MenuItem> items = new ArrayList<>();
