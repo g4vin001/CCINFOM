@@ -1,23 +1,25 @@
 package com.archersground.dbapp.ui;
 
-import com.archersground.dbapp.dao.MenuItemDao;
-import com.archersground.dbapp.model.Gate;
-import com.archersground.dbapp.model.MenuItem;
-import com.archersground.dbapp.model.OrderItemRequest;
-import com.archersground.dbapp.model.OrderStatus;
-import com.archersground.dbapp.model.OrderType;
-import com.archersground.dbapp.model.OrderWorkflowView;
-import com.archersground.dbapp.model.PaymentMethod;
-import com.archersground.dbapp.model.PlaceOrderRequest;
-import com.archersground.dbapp.service.OrderService;
-import com.archersground.dbapp.service.ReportService;
-import com.archersground.dbapp.util.DatabaseConnection;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -32,21 +34,19 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.YearMonth;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.List;
+
+import com.archersground.dbapp.dao.MenuItemDao;
+import com.archersground.dbapp.model.Gate;
+import com.archersground.dbapp.model.MenuItem;
+import com.archersground.dbapp.model.OrderItemRequest;
+import com.archersground.dbapp.model.OrderStatus;
+import com.archersground.dbapp.model.OrderType;
+import com.archersground.dbapp.model.OrderWorkflowView;
+import com.archersground.dbapp.model.PaymentMethod;
+import com.archersground.dbapp.model.PlaceOrderRequest;
+import com.archersground.dbapp.service.OrderService;
+import com.archersground.dbapp.service.ReportService;
+import com.archersground.dbapp.util.DatabaseConnection;
 
 public class SwingApp {
     private static final Color CREAM = new Color(247, 240, 229);
@@ -82,6 +82,10 @@ public class SwingApp {
     private JTextField deliveryEmployeeIdField;
     private JComboBox<OrderStatus> deliveryStatusComboBox;
     private JTextField deliveryNotesField;
+
+    private JTextArea pickupQueueArea;
+    private JTextField completionOrderIdField;
+    private JTextField completionEmployeeIdField;
 
     private JTextArea cancellationQueueArea;
     private JTextField refundOrderIdField;
@@ -285,9 +289,27 @@ public class SwingApp {
         styleButton(deliveryButton);
         addField(deliveryPanel, 4, "", deliveryButton);
 
+        pickupQueueArea = createReadOnlyTextArea(6);
+        JPanel pickupQueuePanel = createInfoPanel("Ready for Pickup / Dine-In Service", pickupQueueArea);
+
+        completionOrderIdField = new JTextField();
+        completionEmployeeIdField = new JTextField();
+        JPanel completionPanel = createFormPanel();
+        completionPanel.setBorder(BorderFactory.createTitledBorder("Mark Order Completed / Picked Up"));
+        addField(completionPanel, 0, "Order ID", completionOrderIdField);
+        addField(completionPanel, 1, "Employee ID", completionEmployeeIdField);
+        JButton completionButton = new JButton("Mark Completed");
+        completionButton.addActionListener(event -> markOrderCompleted());
+        styleButton(completionButton);
+        addField(completionPanel, 2, "", completionButton);
+
         wrapper.add(queuePanel);
         wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(readyPanel);
+        wrapper.add(Box.createVerticalStrut(12));
+        wrapper.add(pickupQueuePanel);
+        wrapper.add(Box.createVerticalStrut(12));
+        wrapper.add(completionPanel);
         wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(deliveryQueuePanel);
         wrapper.add(Box.createVerticalStrut(12));
@@ -438,6 +460,25 @@ public class SwingApp {
                     orderItemsArea.setText("");
                     gateComboBox.setSelectedItem(null);
                     refreshMenuItems();
+                    refreshWorkflowQueues();
+                }
+            );
+        } catch (IllegalArgumentException exception) {
+            showError(exception);
+        }
+    }
+
+    private void markOrderCompleted() {
+        try {
+            int orderId = parseInt(completionOrderIdField.getText(), "Order ID");
+            int employeeId = parseInt(completionEmployeeIdField.getText(), "Employee ID");
+            executeInBackground(
+                () -> {
+                    orderService.markOrderCompleted(orderId, employeeId);
+                    return null;
+                },
+                ignored -> {
+                    showMessage("Order marked as COMPLETED.");
                     refreshWorkflowQueues();
                 }
             );
@@ -605,8 +646,16 @@ public class SwingApp {
 
     private void refreshWorkflowQueues() {
         refreshPreparationQueue();
+        refreshPickupQueue();
         refreshDeliveryQueue();
         refreshCancellationQueue();
+    }
+
+    private void refreshPickupQueue() {
+        executeInBackground(
+            orderService::getPickupCompletionQueue,
+            orders -> pickupQueueArea.setText(formatWorkflowOrders(orders, false))
+        );
     }
 
     private void refreshPreparationQueue() {

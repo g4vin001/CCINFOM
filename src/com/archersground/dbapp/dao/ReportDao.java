@@ -1,5 +1,7 @@
 package com.archersground.dbapp.dao;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,6 +9,13 @@ import java.sql.SQLException;
 import java.time.YearMonth;
 
 public class ReportDao {
+    private static String php(BigDecimal value) {
+        return "Php " + (value == null ? "0.00" : value.setScale(2, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    private static String sep() {
+        return "─".repeat(44) + "\n";
+    }
     public String getMonthlySalesSummary(Connection connection, YearMonth period) throws SQLException {
         StringBuilder builder = new StringBuilder();
         String sql = """
@@ -24,10 +33,11 @@ public class ReportDao {
             statement.setInt(2, period.getMonthValue());
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
-                    builder.append("Monthly Sales Summary\n");
-                    builder.append("Total sales: Php ").append(resultSet.getBigDecimal("total_sales")).append('\n');
-                    builder.append("Total orders: ").append(resultSet.getInt("total_orders")).append('\n');
-                    builder.append("Average order value: Php ").append(resultSet.getBigDecimal("average_order_value")).append('\n');
+                    builder.append("Monthly Sales Summary — ").append(period).append('\n');
+                    builder.append(sep());
+                    builder.append(String.format("%-24s %s%n", "Total Sales:", php(resultSet.getBigDecimal("total_sales"))));
+                    builder.append(String.format("%-24s %d%n", "Total Orders:", resultSet.getInt("total_orders")));
+                    builder.append(String.format("%-24s %s%n", "Average Order Value:", php(resultSet.getBigDecimal("average_order_value"))));
                 }
             }
         }
@@ -45,12 +55,11 @@ public class ReportDao {
             statement.setInt(1, period.getYear());
             statement.setInt(2, period.getMonthValue());
             try (ResultSet resultSet = statement.executeQuery()) {
-                builder.append('\n').append("Breakdown by order type:\n");
+                builder.append('\n').append("Breakdown by Order Type:\n");
                 while (resultSet.next()) {
-                    builder.append(resultSet.getString("order_type"))
-                        .append(": ")
-                        .append(resultSet.getInt("order_count"))
-                        .append('\n');
+                    builder.append(String.format("  %-24s %d%n",
+                        resultSet.getString("order_type") + ":",
+                        resultSet.getInt("order_count")));
                 }
             }
         }
@@ -59,7 +68,9 @@ public class ReportDao {
     }
 
     public String getCampusGateDeliveryReport(Connection connection, YearMonth period) throws SQLException {
-        StringBuilder builder = new StringBuilder("Campus-Gate Delivery Report\n");
+        StringBuilder builder = new StringBuilder();
+        builder.append("Campus-Gate Delivery Report — ").append(period).append('\n');
+        builder.append(sep());
         String sql = """
             SELECT
                 g.gate_name,
@@ -80,16 +91,12 @@ public class ReportDao {
             statement.setInt(2, period.getMonthValue());
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
-                    builder.append(resultSet.getString("gate_name"))
-                        .append(" | deliveries=")
-                        .append(resultSet.getInt("delivery_count"))
-                        .append(" | fees=Php ")
-                        .append(resultSet.getBigDecimal("total_delivery_fees"))
-                        .append(" | completed=")
-                        .append(resultSet.getInt("completed_deliveries"))
-                        .append(" | failed=")
-                        .append(resultSet.getInt("failed_deliveries"))
-                        .append('\n');
+                    builder.append(String.format("%-20s | deliveries=%-3d | completed=%-3d | failed=%-3d | fees=%s%n",
+                        resultSet.getString("gate_name"),
+                        resultSet.getInt("delivery_count"),
+                        resultSet.getInt("completed_deliveries"),
+                        resultSet.getInt("failed_deliveries"),
+                        php(resultSet.getBigDecimal("total_delivery_fees"))));
                 }
             }
         }
@@ -98,7 +105,9 @@ public class ReportDao {
     }
 
     public String getTopSellingItemsReport(Connection connection, YearMonth period) throws SQLException {
-        StringBuilder builder = new StringBuilder("Top-Selling Menu Items Report\n");
+        StringBuilder builder = new StringBuilder();
+        builder.append("Top-Selling Menu Items — ").append(period).append('\n');
+        builder.append(sep());
         String sql = """
             SELECT
                 mi.item_name,
@@ -117,13 +126,13 @@ public class ReportDao {
             statement.setInt(1, period.getYear());
             statement.setInt(2, period.getMonthValue());
             try (ResultSet resultSet = statement.executeQuery()) {
+                int rank = 1;
                 while (resultSet.next()) {
-                    builder.append(resultSet.getString("item_name"))
-                        .append(" | quantity=")
-                        .append(resultSet.getInt("total_quantity_sold"))
-                        .append(" | revenue=Php ")
-                        .append(resultSet.getBigDecimal("total_revenue"))
-                        .append('\n');
+                    builder.append(String.format("%2d. %-28s | qty=%-4d | revenue=%s%n",
+                        rank++,
+                        resultSet.getString("item_name"),
+                        resultSet.getInt("total_quantity_sold"),
+                        php(resultSet.getBigDecimal("total_revenue"))));
                 }
             }
         }
@@ -132,7 +141,9 @@ public class ReportDao {
     }
 
     public String getOrderVolumeByTimeOfDayReport(Connection connection, YearMonth period) throws SQLException {
-        StringBuilder builder = new StringBuilder("Order Volume by Time of Day Report\n");
+        StringBuilder builder = new StringBuilder();
+        builder.append("Order Volume by Time of Day — ").append(period).append('\n');
+        builder.append(sep());
         String sql = """
             SELECT
                 CASE
@@ -140,6 +151,11 @@ public class ReportDao {
                     WHEN HOUR(o.order_datetime) BETWEEN 12 AND 17 THEN 'Afternoon'
                     ELSE 'Evening'
                 END AS time_period,
+                CASE
+                    WHEN HOUR(o.order_datetime) BETWEEN 6 AND 11 THEN 1
+                    WHEN HOUR(o.order_datetime) BETWEEN 12 AND 17 THEN 2
+                    ELSE 3
+                END AS time_order,
                 c.customer_type,
                 o.order_type,
                 COUNT(*) AS order_count
@@ -147,23 +163,25 @@ public class ReportDao {
             INNER JOIN customers c ON o.customer_id = c.customer_id
             WHERE YEAR(o.order_datetime) = ? AND MONTH(o.order_datetime) = ?
               AND o.order_status NOT IN ('CANCELLED', 'REFUNDED')
-            GROUP BY time_period, c.customer_type, o.order_type
-            ORDER BY time_period, c.customer_type, o.order_type
+            GROUP BY time_period, time_order, c.customer_type, o.order_type
+            ORDER BY time_order, c.customer_type, o.order_type
             """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, period.getYear());
             statement.setInt(2, period.getMonthValue());
             try (ResultSet resultSet = statement.executeQuery()) {
+                String lastPeriod = null;
                 while (resultSet.next()) {
-                    builder.append(resultSet.getString("time_period"))
-                        .append(" | ")
-                        .append(resultSet.getString("customer_type"))
-                        .append(" | ")
-                        .append(resultSet.getString("order_type"))
-                        .append(" | count=")
-                        .append(resultSet.getInt("order_count"))
-                        .append('\n');
+                    String timePeriod = resultSet.getString("time_period");
+                    if (!timePeriod.equals(lastPeriod)) {
+                        builder.append('\n').append(timePeriod).append('\n');
+                        lastPeriod = timePeriod;
+                    }
+                    builder.append(String.format("  %-14s | %-22s | count=%d%n",
+                        resultSet.getString("customer_type"),
+                        resultSet.getString("order_type"),
+                        resultSet.getInt("order_count")));
                 }
             }
         }

@@ -1,10 +1,5 @@
 package com.archersground.dbapp.dao;
 
-import com.archersground.dbapp.model.OrderSnapshot;
-import com.archersground.dbapp.model.OrderStatus;
-import com.archersground.dbapp.model.OrderType;
-import com.archersground.dbapp.model.OrderWorkflowView;
-
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -15,6 +10,11 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.archersground.dbapp.model.OrderSnapshot;
+import com.archersground.dbapp.model.OrderStatus;
+import com.archersground.dbapp.model.OrderType;
+import com.archersground.dbapp.model.OrderWorkflowView;
 
 public class OrderDao {
     public int insertOrder(
@@ -170,6 +170,26 @@ public class OrderDao {
             LEFT JOIN gates g ON g.gate_id = o.gate_id
             WHERE o.order_type = 'CAMPUS_GATE_DELIVERY'
               AND o.order_status IN ('READY', 'OUT_FOR_DELIVERY')
+            ORDER BY o.order_datetime DESC
+            """;
+        return findWorkflowOrders(connection, sql);
+    }
+
+    public List<OrderWorkflowView> findPickupCompletionQueue(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                o.order_id,
+                o.order_datetime,
+                o.order_type,
+                o.order_status,
+                o.total_amount,
+                CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                g.gate_name
+            FROM orders o
+            INNER JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN gates g ON g.gate_id = o.gate_id
+            WHERE o.order_status = 'READY'
+              AND o.order_type IN ('DINE_IN', 'PICK_UP')
             ORDER BY o.order_datetime DESC
             """;
         return findWorkflowOrders(connection, sql);

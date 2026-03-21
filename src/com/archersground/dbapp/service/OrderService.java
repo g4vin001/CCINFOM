@@ -1,5 +1,13 @@
 package com.archersground.dbapp.service;
 
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.archersground.dbapp.config.DatabaseConfig;
 import com.archersground.dbapp.dao.CustomerDao;
 import com.archersground.dbapp.dao.EmployeeDao;
@@ -21,14 +29,6 @@ import com.archersground.dbapp.model.OrderWorkflowView;
 import com.archersground.dbapp.model.PaymentRecord;
 import com.archersground.dbapp.model.PlaceOrderRequest;
 import com.archersground.dbapp.util.DatabaseConnection;
-
-import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 public class OrderService {
     private final MenuItemDao menuItemDao = new MenuItemDao();
@@ -124,6 +124,36 @@ public class OrderService {
         }
     }
 
+    public void markOrderCompleted(int orderId, int updatedByEmployeeId) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                validateEmployee(connection, updatedByEmployeeId);
+                OrderSnapshot order = requireOrder(connection, orderId);
+                if (order.getOrderStatus() != OrderStatus.READY) {
+                    throw new IllegalArgumentException("Only READY orders can be marked COMPLETED.");
+                }
+                if (order.getOrderType() == OrderType.CAMPUS_GATE_DELIVERY) {
+                    throw new IllegalArgumentException("Campus-gate delivery orders use the delivery status update.");
+                }
+                orderDao.markCompleted(connection, orderId, OrderStatus.COMPLETED, LocalDateTime.now());
+                orderStatusLogDao.insertStatusUpdate(
+                    connection,
+                    orderId,
+                    OrderStatus.COMPLETED,
+                    updatedByEmployeeId,
+                    "Order served / picked up"
+                );
+                connection.commit();
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        }
+    }
+
     public void markOrderReady(int orderId, int updatedByEmployeeId) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             connection.setAutoCommit(false);
@@ -159,11 +189,12 @@ public class OrderService {
                 validateEmployee(connection, updatedByEmployeeId);
                 OrderSnapshot order = requireOrder(connection, orderId);
                 validateDeliveryTransition(order, newStatus);
-                orderDao.updateStatus(connection, orderId, newStatus);
-                orderStatusLogDao.insertStatusUpdate(connection, orderId, newStatus, updatedByEmployeeId, notes);
                 if (newStatus == OrderStatus.DELIVERED || newStatus == OrderStatus.FAILED_DELIVERY) {
                     orderDao.markCompleted(connection, orderId, newStatus, LocalDateTime.now());
+                } else {
+                    orderDao.updateStatus(connection, orderId, newStatus);
                 }
+                orderStatusLogDao.insertStatusUpdate(connection, orderId, newStatus, updatedByEmployeeId, notes);
                 connection.commit();
             } catch (SQLException | RuntimeException exception) {
                 connection.rollback();
@@ -241,6 +272,12 @@ public class OrderService {
     public List<OrderWorkflowView> getDeliveryQueue() throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             return orderDao.findDeliveryQueue(connection);
+        }
+    }
+
+    public List<OrderWorkflowView> getPickupCompletionQueue() throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return orderDao.findPickupCompletionQueue(connection);
         }
     }
 
