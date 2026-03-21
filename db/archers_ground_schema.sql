@@ -42,6 +42,7 @@ CREATE TABLE menu_items (
     category VARCHAR(50) NOT NULL,
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
     price DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT chk_menu_item_price CHECK (price >= 0),
     PRIMARY KEY (menu_item_id)
 ) ENGINE = InnoDB;
 
@@ -69,10 +70,14 @@ CREATE TABLE orders (
     order_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     prepared_at DATETIME NULL,
     completed_at DATETIME NULL,
+    CONSTRAINT chk_orders_subtotal CHECK (subtotal_amount >= 0),
+    CONSTRAINT chk_orders_delivery_fee CHECK (delivery_fee >= 0),
+    CONSTRAINT chk_orders_total_amount CHECK (total_amount >= 0),
     PRIMARY KEY (order_id),
     KEY idx_orders_customer_id (customer_id),
     KEY idx_orders_employee_id (processed_by_employee_id),
     KEY idx_orders_gate_id (gate_id),
+    KEY idx_orders_order_datetime (order_datetime),
     CONSTRAINT fk_orders_customer
         FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
     CONSTRAINT fk_orders_employee
@@ -88,6 +93,9 @@ CREATE TABLE order_items (
     quantity INT NOT NULL,
     unit_price DECIMAL(10, 2) NOT NULL,
     line_subtotal DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT chk_order_items_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_order_items_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT chk_order_items_line_subtotal CHECK (line_subtotal >= 0),
     PRIMARY KEY (order_item_id),
     KEY idx_order_items_order_id (order_id),
     KEY idx_order_items_menu_item_id (menu_item_id),
@@ -104,6 +112,7 @@ CREATE TABLE payments (
     payment_amount DECIMAL(10, 2) NOT NULL,
     payment_status ENUM('PENDING', 'PAID', 'REFUNDED') NOT NULL DEFAULT 'PAID',
     payment_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_payments_amount CHECK (payment_amount >= 0),
     PRIMARY KEY (payment_id),
     UNIQUE KEY uq_payments_order_id (order_id),
     CONSTRAINT fk_payments_order
@@ -141,6 +150,7 @@ CREATE TABLE refunds (
     refund_amount DECIMAL(10, 2) NOT NULL,
     refund_reason VARCHAR(255) NOT NULL,
     refund_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_refunds_amount CHECK (refund_amount >= 0),
     PRIMARY KEY (refund_id),
     UNIQUE KEY uq_refunds_order_id (order_id),
     CONSTRAINT fk_refunds_order

@@ -7,10 +7,6 @@ import java.sql.SQLException;
 import java.time.YearMonth;
 
 public class ReportDao {
-    public void printMonthlySalesSummary(Connection connection, YearMonth period) throws SQLException {
-        System.out.print(getMonthlySalesSummary(connection, period));
-    }
-
     public String getMonthlySalesSummary(Connection connection, YearMonth period) throws SQLException {
         StringBuilder builder = new StringBuilder();
         String sql = """
@@ -20,7 +16,7 @@ public class ReportDao {
                 COALESCE(AVG(total_amount), 0) AS average_order_value
             FROM orders
             WHERE YEAR(order_datetime) = ? AND MONTH(order_datetime) = ?
-              AND order_status NOT IN ('CANCELLED')
+              AND order_status NOT IN ('CANCELLED', 'REFUNDED')
             """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -40,7 +36,7 @@ public class ReportDao {
             SELECT order_type, COUNT(*) AS order_count
             FROM orders
             WHERE YEAR(order_datetime) = ? AND MONTH(order_datetime) = ?
-              AND order_status NOT IN ('CANCELLED')
+              AND order_status NOT IN ('CANCELLED', 'REFUNDED')
             GROUP BY order_type
             ORDER BY order_type
             """;
@@ -60,10 +56,6 @@ public class ReportDao {
         }
 
         return builder.toString();
-    }
-
-    public void printCampusGateDeliveryReport(Connection connection, YearMonth period) throws SQLException {
-        System.out.print(getCampusGateDeliveryReport(connection, period));
     }
 
     public String getCampusGateDeliveryReport(Connection connection, YearMonth period) throws SQLException {
@@ -105,10 +97,6 @@ public class ReportDao {
         return builder.toString();
     }
 
-    public void printTopSellingItemsReport(Connection connection, YearMonth period) throws SQLException {
-        System.out.print(getTopSellingItemsReport(connection, period));
-    }
-
     public String getTopSellingItemsReport(Connection connection, YearMonth period) throws SQLException {
         StringBuilder builder = new StringBuilder("Top-Selling Menu Items Report\n");
         String sql = """
@@ -143,10 +131,6 @@ public class ReportDao {
         return builder.toString();
     }
 
-    public void printOrderVolumeByTimeOfDayReport(Connection connection, YearMonth period) throws SQLException {
-        System.out.print(getOrderVolumeByTimeOfDayReport(connection, period));
-    }
-
     public String getOrderVolumeByTimeOfDayReport(Connection connection, YearMonth period) throws SQLException {
         StringBuilder builder = new StringBuilder("Order Volume by Time of Day Report\n");
         String sql = """
@@ -162,6 +146,7 @@ public class ReportDao {
             FROM orders o
             INNER JOIN customers c ON o.customer_id = c.customer_id
             WHERE YEAR(o.order_datetime) = ? AND MONTH(o.order_datetime) = ?
+              AND o.order_status NOT IN ('CANCELLED', 'REFUNDED')
             GROUP BY time_period, c.customer_type, o.order_type
             ORDER BY time_period, c.customer_type, o.order_type
             """;

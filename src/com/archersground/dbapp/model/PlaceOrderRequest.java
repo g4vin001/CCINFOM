@@ -4,18 +4,18 @@ import java.util.List;
 
 public class PlaceOrderRequest {
     private final int customerId;
-    private final int employeeId;
+    private final Integer employeeId;
     private final Integer gateId;
     private final OrderType orderType;
-    private final String paymentMethod;
+    private final PaymentMethod paymentMethod;
     private final List<OrderItemRequest> items;
 
     public PlaceOrderRequest(
         int customerId,
-        int employeeId,
+        Integer employeeId,
         Integer gateId,
         OrderType orderType,
-        String paymentMethod,
+        PaymentMethod paymentMethod,
         List<OrderItemRequest> items
     ) {
         this.customerId = customerId;
@@ -23,14 +23,14 @@ public class PlaceOrderRequest {
         this.gateId = gateId;
         this.orderType = orderType;
         this.paymentMethod = paymentMethod;
-        this.items = items;
+        this.items = List.copyOf(items);
     }
 
     public int getCustomerId() {
         return customerId;
     }
 
-    public int getEmployeeId() {
+    public Integer getEmployeeId() {
         return employeeId;
     }
 
@@ -42,7 +42,7 @@ public class PlaceOrderRequest {
         return orderType;
     }
 
-    public String getPaymentMethod() {
+    public PaymentMethod getPaymentMethod() {
         return paymentMethod;
     }
 

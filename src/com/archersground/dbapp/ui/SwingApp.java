@@ -1,10 +1,13 @@
 package com.archersground.dbapp.ui;
 
 import com.archersground.dbapp.dao.MenuItemDao;
+import com.archersground.dbapp.model.Gate;
 import com.archersground.dbapp.model.MenuItem;
 import com.archersground.dbapp.model.OrderItemRequest;
 import com.archersground.dbapp.model.OrderStatus;
 import com.archersground.dbapp.model.OrderType;
+import com.archersground.dbapp.model.OrderWorkflowView;
+import com.archersground.dbapp.model.PaymentMethod;
 import com.archersground.dbapp.model.PlaceOrderRequest;
 import com.archersground.dbapp.service.OrderService;
 import com.archersground.dbapp.service.ReportService;
@@ -14,6 +17,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -25,6 +29,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
@@ -63,20 +68,22 @@ public class SwingApp {
     };
 
     private JTextField customerIdField;
-    private JTextField employeeIdField;
     private JComboBox<OrderType> orderTypeComboBox;
-    private JTextField gateIdField;
+    private JComboBox<Gate> gateComboBox;
     private JTextArea orderItemsArea;
     private JComboBox<String> paymentMethodComboBox;
 
+    private JTextArea preparationQueueArea;
     private JTextField readyOrderIdField;
     private JTextField readyEmployeeIdField;
 
+    private JTextArea deliveryQueueArea;
     private JTextField deliveryOrderIdField;
     private JTextField deliveryEmployeeIdField;
     private JComboBox<OrderStatus> deliveryStatusComboBox;
     private JTextField deliveryNotesField;
 
+    private JTextArea cancellationQueueArea;
     private JTextField refundOrderIdField;
     private JTextField refundEmployeeIdField;
     private JTextField refundAmountField;
@@ -98,6 +105,8 @@ public class SwingApp {
             frame.setVisible(true);
 
             refreshMenuItems();
+            refreshActiveGates();
+            refreshWorkflowQueues();
         });
     }
 
@@ -109,16 +118,28 @@ public class SwingApp {
         root.add(buildHeader(), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Menu Items", buildMenuPanel());
-        tabs.addTab("Place Order", buildPlaceOrderPanel());
-        tabs.addTab("Order Status", buildStatusPanel());
-        tabs.addTab("Refunds", buildRefundPanel());
-        tabs.addTab("Reports", buildReportsPanel());
+        tabs.addTab("Customer Portal", buildCustomerPortal());
+        tabs.addTab("Staff Portal", buildStaffPortal());
         tabs.setBackground(Color.WHITE);
         tabs.setForeground(FOREST);
         root.add(tabs, BorderLayout.CENTER);
 
         return root;
+    }
+
+    private JTabbedPane buildCustomerPortal() {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Menu Items", buildMenuPanel());
+        tabs.addTab("Place Order", buildPlaceOrderPanel());
+        return tabs;
+    }
+
+    private JTabbedPane buildStaffPortal() {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Order Status", buildStatusPanel());
+        tabs.addTab("Refunds", buildRefundPanel());
+        tabs.addTab("Reports", buildReportsPanel());
+        return tabs;
     }
 
     private JPanel buildHeader() {
@@ -182,9 +203,8 @@ public class SwingApp {
 
     private JPanel buildPlaceOrderPanel() {
         customerIdField = new JTextField();
-        employeeIdField = new JTextField();
         orderTypeComboBox = new JComboBox<>(OrderType.values());
-        gateIdField = new JTextField();
+        gateComboBox = new JComboBox<>(new DefaultComboBoxModel<>());
         orderItemsArea = new JTextArea(7, 20);
         paymentMethodComboBox = new JComboBox<>(new String[]{"CASH", "GCASH", "CARD"});
 
@@ -192,16 +212,17 @@ public class SwingApp {
 
         JPanel form = createFormPanel();
         addField(form, 0, "Customer ID", customerIdField);
-        addField(form, 1, "Employee ID", employeeIdField);
-        addField(form, 2, "Order Type", orderTypeComboBox);
-        addField(form, 3, "Gate ID", gateIdField);
+        addField(form, 1, "Order Type", orderTypeComboBox);
+        addField(form, 2, "Gate", gateComboBox);
 
         JScrollPane itemsScrollPane = new JScrollPane(orderItemsArea);
         itemsScrollPane.setPreferredSize(new Dimension(320, 130));
-        addField(form, 4, "Items", itemsScrollPane);
-        addField(form, 5, "Payment Method", paymentMethodComboBox);
+        addField(form, 3, "Items", itemsScrollPane);
+        addField(form, 4, "Payment Method", paymentMethodComboBox);
 
         JTextArea helpText = new JTextArea(
+            "Customer mode places the order directly.\n" +
+            "Staff processing is handled in the Staff Portal.\n\n" +
             "Enter one order item per line using: menuItemId,quantity\n" +
             "Example:\n3,1\n17,2"
         );
@@ -209,7 +230,7 @@ public class SwingApp {
         helpText.setOpaque(false);
         helpText.setLineWrap(true);
         helpText.setWrapStyleWord(true);
-        addField(form, 6, "Format", helpText);
+        addField(form, 5, "Format", helpText);
 
         JButton submitButton = new JButton("Place Order");
         submitButton.addActionListener(event -> placeOrder());
@@ -228,6 +249,9 @@ public class SwingApp {
         JPanel wrapper = new JPanel();
         wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
 
+        preparationQueueArea = createReadOnlyTextArea(6);
+        JPanel queuePanel = createInfoPanel("Paid / Preparing Orders", preparationQueueArea);
+
         readyOrderIdField = new JTextField();
         readyEmployeeIdField = new JTextField();
         JPanel readyPanel = createFormPanel();
@@ -238,6 +262,9 @@ public class SwingApp {
         readyButton.addActionListener(event -> markOrderReady());
         styleButton(readyButton);
         addField(readyPanel, 2, "", readyButton);
+
+        deliveryQueueArea = createReadOnlyTextArea(6);
+        JPanel deliveryQueuePanel = createInfoPanel("Ready / Out-for-Delivery Orders", deliveryQueueArea);
 
         deliveryOrderIdField = new JTextField();
         deliveryEmployeeIdField = new JTextField();
@@ -258,7 +285,11 @@ public class SwingApp {
         styleButton(deliveryButton);
         addField(deliveryPanel, 4, "", deliveryButton);
 
+        wrapper.add(queuePanel);
+        wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(readyPanel);
+        wrapper.add(Box.createVerticalStrut(12));
+        wrapper.add(deliveryQueuePanel);
         wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(deliveryPanel);
 
@@ -269,11 +300,13 @@ public class SwingApp {
     }
 
     private JPanel buildRefundPanel() {
+        cancellationQueueArea = createReadOnlyTextArea(7);
         refundOrderIdField = new JTextField();
         refundEmployeeIdField = new JTextField();
         refundAmountField = new JTextField("0.00");
         refundReasonField = new JTextField();
 
+        JPanel queuePanel = createInfoPanel("Active Orders Eligible for Cancel / Refund", cancellationQueueArea);
         JPanel panel = createFormPanel();
         addField(panel, 0, "Order ID", refundOrderIdField);
         addField(panel, 1, "Employee ID", refundEmployeeIdField);
@@ -287,7 +320,8 @@ public class SwingApp {
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setBackground(CREAM);
-        wrapper.add(panel, BorderLayout.NORTH);
+        wrapper.add(queuePanel, BorderLayout.CENTER);
+        wrapper.add(panel, BorderLayout.SOUTH);
         return wrapper;
     }
 
@@ -325,6 +359,22 @@ public class SwingApp {
         return panel;
     }
 
+    private JPanel createInfoPanel(String title, JTextArea textArea) {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBackground(CREAM);
+        panel.setBorder(BorderFactory.createTitledBorder(title));
+        panel.add(new JScrollPane(textArea), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JTextArea createReadOnlyTextArea(int rows) {
+        JTextArea textArea = new JTextArea(rows, 20);
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        return textArea;
+    }
+
     private void addField(JPanel panel, int row, String label, java.awt.Component component) {
         GridBagConstraints left = new GridBagConstraints();
         left.gridx = 0;
@@ -349,66 +399,89 @@ public class SwingApp {
     }
 
     private void refreshMenuItems() {
-        try (Connection connection = DatabaseConnection.getConnection()) {
-            List<MenuItem> items = menuItemDao.findAvailableItems(connection);
-            menuTableModel.setRowCount(0);
-            for (MenuItem item : items) {
-                menuTableModel.addRow(new Object[]{
-                    item.getMenuItemId(),
-                    item.getItemName(),
-                    item.getCategory(),
-                    item.isAvailable() ? "Yes" : "No",
-                    item.getPrice()
-                });
+        executeInBackground(
+            () -> {
+                try (Connection connection = DatabaseConnection.getConnection()) {
+                    return menuItemDao.findAvailableItems(connection);
+                }
+            },
+            items -> {
+                menuTableModel.setRowCount(0);
+                for (MenuItem item : items) {
+                    menuTableModel.addRow(new Object[]{
+                        item.getMenuItemId(),
+                        item.getItemName(),
+                        item.getCategory(),
+                        item.isAvailable() ? "Yes" : "No",
+                        item.getPrice()
+                    });
+                }
             }
-        } catch (SQLException exception) {
-            showError(exception);
-        }
+        );
     }
 
     private void placeOrder() {
         try {
             PlaceOrderRequest request = new PlaceOrderRequest(
                 parseInt(customerIdField.getText(), "Customer ID"),
-                parseInt(employeeIdField.getText(), "Employee ID"),
+                null,
                 parseOptionalGateId(),
                 (OrderType) orderTypeComboBox.getSelectedItem(),
-                (String) paymentMethodComboBox.getSelectedItem(),
+                PaymentMethod.fromString((String) paymentMethodComboBox.getSelectedItem()),
                 parseOrderItems()
             );
 
-            int orderId = orderService.placeOrder(request);
-            showMessage("Order created successfully. Order ID: " + orderId);
-            orderItemsArea.setText("");
-            gateIdField.setText("");
-            refreshMenuItems();
-        } catch (IllegalArgumentException | SQLException exception) {
+            executeInBackground(
+                () -> orderService.placeOrder(request),
+                orderId -> {
+                    showMessage("Order created successfully. Order ID: " + orderId);
+                    orderItemsArea.setText("");
+                    gateComboBox.setSelectedItem(null);
+                    refreshMenuItems();
+                    refreshWorkflowQueues();
+                }
+            );
+        } catch (IllegalArgumentException exception) {
             showError(exception);
         }
     }
 
     private void markOrderReady() {
         try {
-            orderService.markOrderReady(
-                parseInt(readyOrderIdField.getText(), "Order ID"),
-                parseInt(readyEmployeeIdField.getText(), "Employee ID")
+            int orderId = parseInt(readyOrderIdField.getText(), "Order ID");
+            int employeeId = parseInt(readyEmployeeIdField.getText(), "Employee ID");
+            executeInBackground(
+                () -> {
+                    orderService.markOrderReady(orderId, employeeId);
+                    return null;
+                },
+                ignored -> {
+                    showMessage("Order updated to READY.");
+                    refreshWorkflowQueues();
+                }
             );
-            showMessage("Order updated to READY.");
-        } catch (IllegalArgumentException | SQLException exception) {
+        } catch (IllegalArgumentException exception) {
             showError(exception);
         }
     }
 
     private void updateDeliveryStatus() {
         try {
-            orderService.updateDeliveryStatus(
-                parseInt(deliveryOrderIdField.getText(), "Order ID"),
-                (OrderStatus) deliveryStatusComboBox.getSelectedItem(),
-                parseInt(deliveryEmployeeIdField.getText(), "Employee ID"),
-                deliveryNotesField.getText().trim()
+            int orderId = parseInt(deliveryOrderIdField.getText(), "Order ID");
+            OrderStatus status = (OrderStatus) deliveryStatusComboBox.getSelectedItem();
+            int employeeId = parseInt(deliveryEmployeeIdField.getText(), "Employee ID");
+            String notes = deliveryNotesField.getText().trim();
+            executeInBackground(
+                () -> {
+                    orderService.updateDeliveryStatus(orderId, status, employeeId, notes);
+                    return null;
+                },
+                ignored -> {
+                    showMessage("Delivery status updated.");
+                    refreshWorkflowQueues();
+                }
             );
-            showMessage("Delivery status updated.");
-        } catch (IllegalArgumentException | SQLException exception) {
+        } catch (IllegalArgumentException exception) {
             showError(exception);
         }
     }
@@ -416,18 +489,24 @@ public class SwingApp {
     private void cancelOrRefundOrder() {
         try {
             BigDecimal refundAmount = new BigDecimal(refundAmountField.getText().trim());
-            orderService.cancelOrRefundOrder(
-                parseInt(refundOrderIdField.getText(), "Order ID"),
-                parseInt(refundEmployeeIdField.getText(), "Employee ID"),
-                refundAmount,
-                refundReasonField.getText().trim()
+            int orderId = parseInt(refundOrderIdField.getText(), "Order ID");
+            int employeeId = parseInt(refundEmployeeIdField.getText(), "Employee ID");
+            String reason = refundReasonField.getText().trim();
+            executeInBackground(
+                () -> {
+                    orderService.cancelOrRefundOrder(orderId, employeeId, refundAmount, reason);
+                    return null;
+                },
+                ignored -> {
+                    if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+                        showMessage("Order refunded.");
+                    } else {
+                        showMessage("Order cancelled.");
+                    }
+                    refreshWorkflowQueues();
+                }
             );
-            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-                showMessage("Order refunded.");
-            } else {
-                showMessage("Order cancelled.");
-            }
-        } catch (IllegalArgumentException | SQLException exception) {
+        } catch (IllegalArgumentException exception) {
             showError(exception);
         }
     }
@@ -436,18 +515,22 @@ public class SwingApp {
         try {
             YearMonth period = YearMonth.parse(reportYearMonthField.getText().trim());
             String selectedReport = (String) reportTypeComboBox.getSelectedItem();
-            String reportText = switch (selectedReport) {
-                case "Monthly Sales Summary" -> reportService.getMonthlySalesSummary(period);
-                case "Campus-Gate Delivery Report" -> reportService.getCampusGateDeliveryReport(period);
-                case "Top-Selling Menu Items" -> reportService.getTopSellingItemsReport(period);
-                case "Order Volume by Time of Day" -> reportService.getOrderVolumeByTimeOfDayReport(period);
-                default -> throw new IllegalArgumentException("Unsupported report type.");
-            };
-            reportOutputArea.setText(reportText);
-            reportOutputArea.setCaretPosition(0);
+            executeInBackground(
+                () -> switch (selectedReport) {
+                    case "Monthly Sales Summary" -> reportService.getMonthlySalesSummary(period);
+                    case "Campus-Gate Delivery Report" -> reportService.getCampusGateDeliveryReport(period);
+                    case "Top-Selling Menu Items" -> reportService.getTopSellingItemsReport(period);
+                    case "Order Volume by Time of Day" -> reportService.getOrderVolumeByTimeOfDayReport(period);
+                    default -> throw new IllegalArgumentException("Unsupported report type.");
+                },
+                reportText -> {
+                    reportOutputArea.setText(reportText);
+                    reportOutputArea.setCaretPosition(0);
+                }
+            );
         } catch (DateTimeParseException exception) {
             showError(new IllegalArgumentException("Year-Month must use the format YYYY-MM."));
-        } catch (IllegalArgumentException | SQLException exception) {
+        } catch (IllegalArgumentException exception) {
             showError(exception);
         }
     }
@@ -482,11 +565,11 @@ public class SwingApp {
             return null;
         }
 
-        String gateText = gateIdField.getText().trim();
-        if (gateText.isEmpty()) {
-            throw new IllegalArgumentException("Gate ID is required for campus-gate delivery.");
+        Gate selectedGate = (Gate) gateComboBox.getSelectedItem();
+        if (selectedGate == null) {
+            throw new IllegalArgumentException("An active gate is required for campus-gate delivery.");
         }
-        return parseInt(gateText, "Gate ID");
+        return selectedGate.getGateId();
     }
 
     private int parseInt(String value, String fieldName) {
@@ -500,10 +583,72 @@ public class SwingApp {
     private void updateGateFieldState() {
         OrderType orderType = (OrderType) orderTypeComboBox.getSelectedItem();
         boolean enabled = orderType == OrderType.CAMPUS_GATE_DELIVERY;
-        gateIdField.setEnabled(enabled);
+        gateComboBox.setEnabled(enabled);
         if (!enabled) {
-            gateIdField.setText("");
+            gateComboBox.setSelectedItem(null);
         }
+    }
+
+    private void refreshActiveGates() {
+        executeInBackground(
+            orderService::getActiveGates,
+            gates -> {
+                DefaultComboBoxModel<Gate> model = new DefaultComboBoxModel<>();
+                for (Gate gate : gates) {
+                    model.addElement(gate);
+                }
+                gateComboBox.setModel(model);
+                updateGateFieldState();
+            }
+        );
+    }
+
+    private void refreshWorkflowQueues() {
+        refreshPreparationQueue();
+        refreshDeliveryQueue();
+        refreshCancellationQueue();
+    }
+
+    private void refreshPreparationQueue() {
+        executeInBackground(
+            orderService::getPreparationQueue,
+            orders -> preparationQueueArea.setText(formatWorkflowOrders(orders, false))
+        );
+    }
+
+    private void refreshDeliveryQueue() {
+        executeInBackground(
+            orderService::getDeliveryQueue,
+            orders -> deliveryQueueArea.setText(formatWorkflowOrders(orders, true))
+        );
+    }
+
+    private void refreshCancellationQueue() {
+        executeInBackground(
+            orderService::getCancellationQueue,
+            orders -> cancellationQueueArea.setText(formatWorkflowOrders(orders, true))
+        );
+    }
+
+    private String formatWorkflowOrders(List<OrderWorkflowView> orders, boolean includeGate) {
+        if (orders.isEmpty()) {
+            return "No matching orders.";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (OrderWorkflowView order : orders) {
+            builder.append("Order #").append(order.getOrderId())
+                .append(" | ").append(order.getOrderDateTime())
+                .append(" | ").append(order.getCustomerName())
+                .append(" | ").append(order.getOrderType())
+                .append(" | ").append(order.getOrderStatus())
+                .append(" | Php ").append(order.getTotalAmount());
+            if (includeGate && order.getGateName() != null) {
+                builder.append(" | ").append(order.getGateName());
+            }
+            builder.append('\n');
+        }
+        return builder.toString();
     }
 
     private void showMessage(String message) {
@@ -534,5 +679,38 @@ public class SwingApp {
             BorderFactory.createLineBorder(GOLD, 1),
             BorderFactory.createEmptyBorder(8, 14, 8, 14)
         ));
+    }
+
+    private <T> void executeInBackground(BackgroundTask<T> task, UiSuccessHandler<T> onSuccess) {
+        new SwingWorker<T, Void>() {
+            @Override
+            protected T doInBackground() throws Exception {
+                return task.run();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    onSuccess.accept(get());
+                } catch (Exception exception) {
+                    Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
+                    if (cause instanceof Exception appException) {
+                        showError(appException);
+                    } else {
+                        showError(new RuntimeException(cause));
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    @FunctionalInterface
+    private interface BackgroundTask<T> {
+        T run() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface UiSuccessHandler<T> {
+        void accept(T value);
     }
 }

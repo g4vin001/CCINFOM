@@ -54,6 +54,7 @@ The application reads these environment variables if they are set:
 - `DB_URL`
 - `DB_USERNAME`
 - `DB_PASSWORD`
+- `DEFAULT_PROCESSING_EMPLOYEE_ID`
 
 PowerShell example:
 
@@ -61,6 +62,7 @@ PowerShell example:
 $env:DB_URL="jdbc:mysql://localhost:3306/archers_ground_db"
 $env:DB_USERNAME="root"
 $env:DB_PASSWORD="your_mysql_password"
+$env:DEFAULT_PROCESSING_EMPLOYEE_ID="1"
 ```
 
 If you do not set them, the app uses the fallback values in `src/com/archersground/dbapp/config/DatabaseConfig.java`.
@@ -70,8 +72,12 @@ Current fallback values:
 ```java
 DEFAULT_URL = "jdbc:mysql://localhost:3306/archers_ground_db"
 DEFAULT_USERNAME = "root"
-DEFAULT_PASSWORD = "root123"
+DEFAULT_PASSWORD = ""
+DEFAULT_PROCESSING_EMPLOYEE_ID = 1
 ```
+
+Set `DB_PASSWORD` explicitly if your MySQL account uses a password.
+Set `DEFAULT_PROCESSING_EMPLOYEE_ID` if customer orders should be recorded under a different active employee.
 
 ## How To Compile
 
@@ -134,6 +140,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 ## Notes
 
+- The GUI is split into `Customer Portal` and `Staff Portal`.
+- Customer order placement no longer asks for an employee ID; it uses the configured default processing employee.
 - The GUI is built on top of the same JDBC and service layer used by the original console workflow.
 - The SQL files do not update MySQL automatically. You must execute them in MySQL Workbench or another SQL client.
 - If you edit the seed file after data has already been inserted, rerun the database setup so MySQL reflects the new seed data.

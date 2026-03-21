@@ -1,7 +1,9 @@
 package com.archersground.dbapp.dao;
 
+import com.archersground.dbapp.model.OrderSnapshot;
 import com.archersground.dbapp.model.OrderStatus;
 import com.archersground.dbapp.model.OrderType;
+import com.archersground.dbapp.model.OrderWorkflowView;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -11,6 +13,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class OrderDao {
     public int insertOrder(
@@ -33,7 +37,7 @@ public class OrderDao {
                 subtotal_amount,
                 delivery_fee,
                 total_amount
-            ) VALUES (?, ?, ?, ?, 'PAID', ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, 'CREATED', ?, ?, ?)
             """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -107,5 +111,105 @@ public class OrderDao {
             }
         }
         return null;
+    }
+
+    public OrderSnapshot findById(Connection connection, int orderId) throws SQLException {
+        String sql = """
+            SELECT order_id, order_type, order_status, total_amount
+            FROM orders
+            WHERE order_id = ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, orderId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new OrderSnapshot(
+                        resultSet.getInt("order_id"),
+                        OrderType.valueOf(resultSet.getString("order_type")),
+                        OrderStatus.valueOf(resultSet.getString("order_status")),
+                        resultSet.getBigDecimal("total_amount")
+                    );
+                }
+            }
+        }
+        return null;
+    }
+
+    public List<OrderWorkflowView> findPreparationQueue(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                o.order_id,
+                o.order_datetime,
+                o.order_type,
+                o.order_status,
+                o.total_amount,
+                CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                g.gate_name
+            FROM orders o
+            INNER JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN gates g ON g.gate_id = o.gate_id
+            WHERE o.order_status IN ('PAID', 'PREPARING')
+            ORDER BY o.order_datetime DESC
+            """;
+        return findWorkflowOrders(connection, sql);
+    }
+
+    public List<OrderWorkflowView> findDeliveryQueue(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                o.order_id,
+                o.order_datetime,
+                o.order_type,
+                o.order_status,
+                o.total_amount,
+                CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                g.gate_name
+            FROM orders o
+            INNER JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN gates g ON g.gate_id = o.gate_id
+            WHERE o.order_type = 'CAMPUS_GATE_DELIVERY'
+              AND o.order_status IN ('READY', 'OUT_FOR_DELIVERY')
+            ORDER BY o.order_datetime DESC
+            """;
+        return findWorkflowOrders(connection, sql);
+    }
+
+    public List<OrderWorkflowView> findCancellationQueue(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                o.order_id,
+                o.order_datetime,
+                o.order_type,
+                o.order_status,
+                o.total_amount,
+                CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                g.gate_name
+            FROM orders o
+            INNER JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN gates g ON g.gate_id = o.gate_id
+            WHERE o.order_status NOT IN ('CANCELLED', 'REFUNDED', 'DELIVERED', 'COMPLETED')
+            ORDER BY o.order_datetime DESC
+            """;
+        return findWorkflowOrders(connection, sql);
+    }
+
+    private List<OrderWorkflowView> findWorkflowOrders(Connection connection, String sql) throws SQLException {
+        List<OrderWorkflowView> orders = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                orders.add(new OrderWorkflowView(
+                    resultSet.getInt("order_id"),
+                    resultSet.getTimestamp("order_datetime").toLocalDateTime(),
+                    OrderType.valueOf(resultSet.getString("order_type")),
+                    OrderStatus.valueOf(resultSet.getString("order_status")),
+                    resultSet.getBigDecimal("total_amount"),
+                    resultSet.getString("customer_name"),
+                    resultSet.getString("gate_name")
+                ));
+            }
+        }
+        return orders;
     }
 }

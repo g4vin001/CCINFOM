@@ -1,10 +1,12 @@
 package com.archersground.dbapp.ui;
 
 import com.archersground.dbapp.dao.MenuItemDao;
+import com.archersground.dbapp.model.Gate;
 import com.archersground.dbapp.model.MenuItem;
 import com.archersground.dbapp.model.OrderItemRequest;
 import com.archersground.dbapp.model.OrderStatus;
 import com.archersground.dbapp.model.OrderType;
+import com.archersground.dbapp.model.PaymentMethod;
 import com.archersground.dbapp.model.PlaceOrderRequest;
 import com.archersground.dbapp.service.OrderService;
 import com.archersground.dbapp.service.ReportService;
@@ -74,9 +76,6 @@ public class ConsoleApp {
         System.out.print("Customer ID: ");
         int customerId = Integer.parseInt(scanner.nextLine().trim());
 
-        System.out.print("Employee ID processing the order: ");
-        int employeeId = Integer.parseInt(scanner.nextLine().trim());
-
         System.out.print("Order type (1=Dine-in, 2=Pick-up, 3=Campus-gate delivery): ");
         String orderTypeChoice = scanner.nextLine().trim();
         OrderType orderType = switch (orderTypeChoice) {
@@ -88,8 +87,7 @@ public class ConsoleApp {
 
         Integer gateId = null;
         if (orderType == OrderType.CAMPUS_GATE_DELIVERY) {
-            System.out.print("Gate ID: ");
-            gateId = Integer.parseInt(scanner.nextLine().trim());
+            gateId = chooseActiveGate();
         }
 
         showAvailableMenuItems();
@@ -111,10 +109,10 @@ public class ConsoleApp {
 
         PlaceOrderRequest request = new PlaceOrderRequest(
             customerId,
-            employeeId,
+            null,
             gateId,
             orderType,
-            paymentMethod,
+            PaymentMethod.fromString(paymentMethod),
             items
         );
 
@@ -177,10 +175,10 @@ public class ConsoleApp {
         String choice = scanner.nextLine().trim();
 
         switch (choice) {
-            case "1" -> reportService.printMonthlySalesSummary(period);
-            case "2" -> reportService.printCampusGateDeliveryReport(period);
-            case "3" -> reportService.printTopSellingItemsReport(period);
-            case "4" -> reportService.printOrderVolumeByTimeOfDayReport(period);
+            case "1" -> System.out.print(reportService.getMonthlySalesSummary(period));
+            case "2" -> System.out.print(reportService.getCampusGateDeliveryReport(period));
+            case "3" -> System.out.print(reportService.getTopSellingItemsReport(period));
+            case "4" -> System.out.print(reportService.getOrderVolumeByTimeOfDayReport(period));
             default -> System.out.println("Invalid option.");
         }
     }
@@ -191,5 +189,20 @@ public class ConsoleApp {
         System.out.print("Month (1-12): ");
         int month = Integer.parseInt(scanner.nextLine().trim());
         return YearMonth.of(year, month);
+    }
+
+    private Integer chooseActiveGate() throws SQLException {
+        List<Gate> gates = orderService.getActiveGates();
+        if (gates.isEmpty()) {
+            throw new IllegalArgumentException("No active gates are available.");
+        }
+
+        System.out.println("Active gates:");
+        for (Gate gate : gates) {
+            System.out.println(gate.getGateId() + ". " + gate);
+        }
+
+        System.out.print("Gate ID: ");
+        return Integer.parseInt(scanner.nextLine().trim());
     }
 }
