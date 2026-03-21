@@ -18,6 +18,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.Icon;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -33,13 +34,22 @@ import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -53,6 +63,8 @@ public class SwingApp {
     private static final Color FOREST = new Color(29, 78, 52);
     private static final Color MOSS = new Color(120, 148, 96);
     private static final Color GOLD = new Color(198, 152, 73);
+    private static final Color COFFEE = new Color(133, 81, 42);
+    private static final Color LATTE = new Color(224, 196, 139);
 
     private final OrderService orderService = new OrderService();
     private final ReportService reportService = new ReportService();
@@ -150,6 +162,14 @@ public class SwingApp {
             BorderFactory.createEmptyBorder(18, 20, 18, 20)
         ));
 
+        JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        brandPanel.setOpaque(false);
+
+        JLabel logoLabel = buildLogoLabel();
+        if (logoLabel != null) {
+            brandPanel.add(logoLabel);
+        }
+
         JLabel heading = new JLabel("Archer's Ground");
         heading.setForeground(CREAM);
         heading.setFont(new Font("Serif", Font.BOLD, 28));
@@ -164,6 +184,7 @@ public class SwingApp {
         textPanel.add(heading);
         textPanel.add(Box.createVerticalStrut(4));
         textPanel.add(subheading);
+        brandPanel.add(textPanel);
 
         JPanel accent = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         accent.setOpaque(false);
@@ -171,9 +192,15 @@ public class SwingApp {
         accent.add(createAccentBlock(MOSS));
         accent.add(createAccentBlock(CREAM));
 
-        header.add(textPanel, BorderLayout.WEST);
+        header.add(brandPanel, BorderLayout.WEST);
         header.add(accent, BorderLayout.EAST);
         return header;
+    }
+
+    private JLabel buildLogoLabel() {
+        JLabel label = new JLabel(new ArcherLogoIcon(96, 96));
+        label.setOpaque(false);
+        return label;
     }
 
     private JPanel createAccentBlock(Color color) {
@@ -181,6 +208,141 @@ public class SwingApp {
         block.setBackground(color);
         block.setPreferredSize(new Dimension(18, 18));
         return block;
+    }
+
+    private static final class ArcherLogoIcon implements Icon {
+        private final int width;
+        private final int height;
+
+        private ArcherLogoIcon(int width, int height) {
+            this.width = width;
+            this.height = height;
+        }
+
+        @Override
+        public int getIconWidth() {
+            return width;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return height;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.translate(x, y);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.scale(width / 100.0, height / 100.0);
+
+            drawArrow(g2);
+            drawCup(g2);
+            drawSteam(g2);
+            drawArrowCut(g2);
+
+            g2.dispose();
+        }
+
+        private void drawArrow(Graphics2D g2) {
+            Path2D shaft = new Path2D.Double();
+            shaft.moveTo(7, 55);
+            shaft.lineTo(80, 54);
+            shaft.lineTo(80, 58);
+            shaft.lineTo(7, 59);
+            shaft.closePath();
+
+            Path2D tail = new Path2D.Double();
+            tail.moveTo(1, 56);
+            tail.lineTo(8, 51);
+            tail.lineTo(17, 52);
+            tail.lineTo(13, 57);
+            tail.lineTo(17, 62);
+            tail.lineTo(8, 63);
+            tail.closePath();
+
+            Path2D head = new Path2D.Double();
+            head.moveTo(80, 49);
+            head.lineTo(98, 56);
+            head.lineTo(80, 63);
+            head.lineTo(83, 58);
+            head.lineTo(76, 58);
+            head.lineTo(76, 54);
+            head.lineTo(83, 54);
+            head.closePath();
+
+            g2.setColor(CREAM);
+            g2.fill(shaft);
+            g2.fill(tail);
+            g2.fill(head);
+        }
+
+        private void drawCup(Graphics2D g2) {
+            Path2D body = new Path2D.Double();
+            body.moveTo(21, 41);
+            body.curveTo(18, 56, 23, 72, 36, 79);
+            body.curveTo(49, 84, 62, 81, 70, 71);
+            body.curveTo(74, 64, 75, 52, 72, 41);
+            body.closePath();
+
+            g2.setColor(CREAM);
+            g2.fill(body);
+
+            Ellipse2D rim = new Ellipse2D.Double(15, 32, 62, 15);
+            g2.fill(rim);
+
+            g2.setColor(COFFEE);
+            g2.fill(new Ellipse2D.Double(20, 35.5, 53, 9.5));
+
+            Path2D innerShade = new Path2D.Double();
+            innerShade.moveTo(29, 50);
+            innerShade.curveTo(27, 60, 29, 72, 35, 78);
+            innerShade.curveTo(31, 76, 26, 72, 23, 66);
+            innerShade.curveTo(21, 60, 21, 54, 22, 48);
+            innerShade.closePath();
+            g2.setColor(LATTE);
+            g2.fill(innerShade);
+
+            g2.setColor(CREAM);
+            g2.setStroke(new BasicStroke(6.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.draw(new Arc2D.Double(59, 46, 18, 24, -95, 250, Arc2D.OPEN));
+        }
+
+        private void drawSteam(Graphics2D g2) {
+            g2.setColor(CREAM);
+            g2.setStroke(new BasicStroke(5.1f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            Path2D left = new Path2D.Double();
+            left.moveTo(39, 31);
+            left.curveTo(33, 24, 34, 16, 39, 10);
+            left.curveTo(42, 6, 43, 3, 42, 0);
+            g2.draw(left);
+
+            Path2D right = new Path2D.Double();
+            right.moveTo(50, 31);
+            right.curveTo(46, 23, 48, 14, 54, 7);
+            right.curveTo(57, 3, 58, 0, 57, -3);
+            g2.draw(right);
+
+            Path2D center = new Path2D.Double();
+            center.moveTo(45, 31);
+            center.curveTo(41, 22, 43, 13, 48, 6);
+            center.curveTo(51, 2, 52, -1, 51, -4);
+            g2.draw(center);
+        }
+
+        private void drawArrowCut(Graphics2D g2) {
+            g2.setColor(FOREST);
+
+            Path2D cut = new Path2D.Double();
+            cut.moveTo(14, 60);
+            cut.lineTo(51, 55);
+            cut.lineTo(52, 57.7);
+            cut.lineTo(16, 62.5);
+            cut.closePath();
+            g2.fill(cut);
+        }
     }
 
     private JPanel buildMenuPanel() {
