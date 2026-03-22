@@ -147,12 +147,16 @@ CREATE TABLE order_status_log (
 CREATE TABLE refunds (
     refund_id INT NOT NULL AUTO_INCREMENT,
     order_id INT NOT NULL,
+    payment_id INT NOT NULL,
     refund_amount DECIMAL(10, 2) NOT NULL,
     refund_reason VARCHAR(255) NOT NULL,
     refund_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_refunds_amount CHECK (refund_amount >= 0),
     PRIMARY KEY (refund_id),
     UNIQUE KEY uq_refunds_order_id (order_id),
+    KEY idx_refunds_payment_id (payment_id),
     CONSTRAINT fk_refunds_order
-        FOREIGN KEY (order_id) REFERENCES orders(order_id)
+        FOREIGN KEY (order_id) REFERENCES orders(order_id),
+    CONSTRAINT fk_refunds_payment
+        FOREIGN KEY (payment_id) REFERENCES payments(payment_id)
 ) ENGINE = InnoDB;

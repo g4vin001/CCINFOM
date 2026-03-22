@@ -121,9 +121,6 @@ INSERT INTO order_status_log (order_id, status, status_datetime, updated_by_empl
 (6, 'OUT_FOR_DELIVERY', '2026-02-06 15:40:00', 4, 'Courier on the way'),
 (9, 'READY', '2026-02-09 09:05:00', 3, 'Awaiting pickup by rider');
 
-INSERT INTO refunds (order_id, refund_amount, refund_reason, refund_datetime) VALUES
-(8, 150.00, 'Cancelled by customer after payment', '2026-02-08 18:00:00');
-
 INSERT INTO orders (
     customer_id,
     processed_by_employee_id,
@@ -181,13 +178,14 @@ INSERT INTO order_status_log (order_id, status, status_datetime, updated_by_empl
 (18, 'REFUNDED', '2026-02-14 16:25:00', 5, 'Pickup order cancelled by customer'),
 (19, 'REFUNDED', '2026-02-15 18:55:00', 8, 'Driver reported unsuccessful gate meetup');
 
-INSERT INTO refunds (order_id, refund_amount, refund_reason, refund_datetime) VALUES
-(11, 90.00, 'Duplicate payment entry corrected', '2026-02-10 08:50:00'),
-(12, 320.00, 'Cancelled before dispatch to campus gate', '2026-02-10 11:30:00'),
-(13, 145.00, 'Incorrect drink preparation', '2026-02-10 12:50:00'),
-(14, 205.00, 'Gate access issue prevented delivery', '2026-02-11 10:05:00'),
-(15, 140.00, 'Unclaimed pickup order', '2026-02-11 14:45:00'),
-(16, 210.00, 'Ordered item became unavailable', '2026-02-12 17:20:00'),
-(17, 170.00, 'Delivery details changed after preparation', '2026-02-13 12:10:00'),
-(18, 135.00, 'Customer cancelled pickup order', '2026-02-14 16:25:00'),
-(19, 180.00, 'Unsuccessful gate meetup', '2026-02-15 18:55:00');
+INSERT INTO refunds (order_id, payment_id, refund_amount, refund_reason, refund_datetime) VALUES
+(8, 8, 150.00, 'Cancelled by customer after payment', '2026-02-08 18:00:00'),
+(11, 11, 90.00, 'Duplicate payment entry corrected', '2026-02-10 08:50:00'),
+(12, 12, 320.00, 'Cancelled before dispatch to campus gate', '2026-02-10 11:30:00'),
+(13, 13, 145.00, 'Incorrect drink preparation', '2026-02-10 12:50:00'),
+(14, 14, 205.00, 'Gate access issue prevented delivery', '2026-02-11 10:05:00'),
+(15, 15, 140.00, 'Unclaimed pickup order', '2026-02-11 14:45:00'),
+(16, 16, 210.00, 'Ordered item became unavailable', '2026-02-12 17:20:00'),
+(17, 17, 170.00, 'Delivery details changed after preparation', '2026-02-13 12:10:00'),
+(18, 18, 135.00, 'Customer cancelled pickup order', '2026-02-14 16:25:00'),
+(19, 19, 180.00, 'Unsuccessful gate meetup', '2026-02-15 18:55:00'); 
