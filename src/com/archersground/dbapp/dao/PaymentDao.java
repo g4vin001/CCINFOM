@@ -34,7 +34,7 @@ public class PaymentDao {
 
     public PaymentRecord findByOrderId(Connection connection, int orderId) throws SQLException {
         String sql = """
-            SELECT payment_amount, payment_status
+            SELECT payment_id, payment_amount, payment_status
             FROM payments
             WHERE order_id = ?
             """;
@@ -44,6 +44,7 @@ public class PaymentDao {
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
                     return new PaymentRecord(
+                        resultSet.getInt("payment_id"),
                         resultSet.getBigDecimal("payment_amount"),
                         resultSet.getString("payment_status")
                     );

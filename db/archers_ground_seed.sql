@@ -119,7 +119,8 @@ INSERT INTO order_status_log (order_id, status, status_datetime, updated_by_empl
 (4, 'FAILED_DELIVERY', '2026-02-04 13:50:00', 8, 'Customer unavailable at gate'),
 (6, 'READY', '2026-02-06 15:30:00', 3, 'Prepared for dispatch'),
 (6, 'OUT_FOR_DELIVERY', '2026-02-06 15:40:00', 4, 'Courier on the way'),
-(9, 'READY', '2026-02-09 09:05:00', 3, 'Awaiting pickup by rider');
+(9, 'READY', '2026-02-09 09:05:00', 3, 'Awaiting pickup by rider'),
+(10, 'CANCELLED', '2026-02-09 18:12:00', 1, 'Order cancelled before preparation started');
 
 INSERT INTO orders (
     customer_id,

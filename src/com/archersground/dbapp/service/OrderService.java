@@ -198,7 +198,7 @@ public class OrderService {
 
                     orderDao.updateStatus(connection, orderId, OrderStatus.REFUNDED);
                     paymentDao.markRefunded(connection, orderId);
-                    refundDao.insertRefund(connection, orderId, refundAmount, reason);
+                    refundDao.insertRefund(connection, orderId, payment.getPaymentId(), refundAmount, reason);
                     orderStatusLogDao.insertStatusUpdate(
                         connection,
                         orderId,
@@ -223,6 +223,16 @@ public class OrderService {
             } finally {
                 connection.setAutoCommit(true);
             }
+        }
+    }
+
+    public void requestOrderCancellation(int orderId, String reason) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            int defaultEmployeeId = resolveProcessingEmployeeId(connection, null);
+            OrderSnapshot order = requireOrder(connection, orderId);
+            PaymentRecord payment = paymentDao.findByOrderId(connection, orderId);
+            BigDecimal refundAmount = shouldAutoRefund(order, payment) ? payment.getAmount() : BigDecimal.ZERO;
+            cancelOrRefundOrder(orderId, defaultEmployeeId, refundAmount, prefixCustomerReason(reason, "Customer cancellation"));
         }
     }
 
@@ -308,5 +318,26 @@ public class OrderService {
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("Reason is required.");
         }
+    }
+
+    private boolean shouldAutoRefund(OrderSnapshot order, PaymentRecord payment) {
+        if (payment == null) {
+            return false;
+        }
+        if ("REFUNDED".equalsIgnoreCase(payment.getStatus())) {
+            return false;
+        }
+        return switch (order.getOrderStatus()) {
+            case CREATED -> false;
+            default -> payment.getAmount().compareTo(BigDecimal.ZERO) > 0;
+        };
+    }
+
+    private String prefixCustomerReason(String reason, String prefix) {
+        String trimmedReason = reason == null ? "" : reason.trim();
+        if (trimmedReason.isEmpty()) {
+            return prefix;
+        }
+        return prefix + ": " + trimmedReason;
     }
 }

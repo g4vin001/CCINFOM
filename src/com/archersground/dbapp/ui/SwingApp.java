@@ -84,6 +84,8 @@ public class SwingApp {
     private JComboBox<Gate> gateComboBox;
     private JTextArea orderItemsArea;
     private JComboBox<String> paymentMethodComboBox;
+    private JTextField cancelRequestOrderIdField;
+    private JTextField cancelRequestReasonField;
 
     private JTextArea preparationQueueArea;
     private JTextField readyOrderIdField;
@@ -143,6 +145,7 @@ public class SwingApp {
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Menu Items", buildMenuPanel());
         tabs.addTab("Place Order", buildPlaceOrderPanel());
+        tabs.addTab("Cancel Order", buildCancelRequestPanel());
         return tabs;
     }
 
@@ -407,6 +410,35 @@ public class SwingApp {
         return panel;
     }
 
+    private JPanel buildCancelRequestPanel() {
+        cancelRequestOrderIdField = new JTextField();
+        cancelRequestReasonField = new JTextField();
+
+        JPanel form = createFormPanel();
+        addField(form, 0, "Order ID", cancelRequestOrderIdField);
+        addField(form, 1, "Reason", cancelRequestReasonField);
+
+        JTextArea helpText = new JTextArea(
+            "Customer cancellation requests are submitted here.\n" +
+            "If payment already exists, the system will automatically refund the paid amount when allowed."
+        );
+        helpText.setEditable(false);
+        helpText.setOpaque(false);
+        helpText.setLineWrap(true);
+        helpText.setWrapStyleWord(true);
+        addField(form, 2, "Notes", helpText);
+
+        JButton submitButton = new JButton("Request Cancellation");
+        submitButton.addActionListener(event -> requestCancellation());
+        styleButton(submitButton);
+
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBackground(CREAM);
+        panel.add(form, BorderLayout.NORTH);
+        panel.add(submitButton, BorderLayout.SOUTH);
+        return panel;
+    }
+
     private JPanel buildStatusPanel() {
         JPanel wrapper = new JPanel();
         wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
@@ -665,6 +697,25 @@ public class SwingApp {
                     } else {
                         showMessage("Order cancelled.");
                     }
+                    refreshWorkflowQueues();
+                }
+            );
+        } catch (IllegalArgumentException exception) {
+            showError(exception);
+        }
+    }
+
+    private void requestCancellation() {
+        try {
+            int orderId = parseInt(cancelRequestOrderIdField.getText(), "Order ID");
+            String reason = cancelRequestReasonField.getText().trim();
+            executeInBackground(
+                () -> {
+                    orderService.requestOrderCancellation(orderId, reason);
+                    return null;
+                },
+                ignored -> {
+                    showMessage("Customer cancellation processed.");
                     refreshWorkflowQueues();
                 }
             );
