@@ -18,6 +18,7 @@ import com.archersground.dbapp.model.OrderSnapshot;
 import com.archersground.dbapp.model.OrderStatus;
 import com.archersground.dbapp.model.OrderType;
 import com.archersground.dbapp.model.OrderWorkflowView;
+import com.archersground.dbapp.model.PaymentMethod;
 import com.archersground.dbapp.model.PaymentRecord;
 import com.archersground.dbapp.model.PlaceOrderRequest;
 import com.archersground.dbapp.util.DatabaseConnection;
@@ -86,6 +87,8 @@ public class OrderService {
                 }
 
                 BigDecimal totalAmount = subtotal.add(deliveryFee);
+                boolean deferredCashPickup = request.getOrderType() == OrderType.PICK_UP
+                    && request.getPaymentMethod() == PaymentMethod.CASH;
                 int orderId = orderDao.insertOrder(
                     connection,
                     request.getCustomerId(),
@@ -110,9 +113,19 @@ public class OrderService {
                     );
                 }
 
-                paymentDao.insertPayment(connection, orderId, request.getPaymentMethod(), totalAmount);
-                orderDao.updateStatus(connection, orderId, OrderStatus.PAID);
-                orderStatusLogDao.insertStatusUpdate(connection, orderId, OrderStatus.PAID, processingEmployeeId, "Payment recorded");
+                paymentDao.insertPayment(
+                    connection,
+                    orderId,
+                    request.getPaymentMethod(),
+                    totalAmount,
+                    deferredCashPickup ? "PENDING" : "PAID"
+                );
+                if (deferredCashPickup) {
+                    orderDao.updateStatus(connection, orderId, OrderStatus.PREPARING);
+                } else {
+                    orderDao.updateStatus(connection, orderId, OrderStatus.PAID);
+                    orderStatusLogDao.insertStatusUpdate(connection, orderId, OrderStatus.PAID, processingEmployeeId, "Payment recorded");
+                }
                 connection.commit();
                 return orderId;
             } catch (SQLException | RuntimeException exception) {
@@ -228,11 +241,37 @@ public class OrderService {
 
     public void requestOrderCancellation(int orderId, String reason) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
-            int defaultEmployeeId = resolveProcessingEmployeeId(connection, null);
-            OrderSnapshot order = requireOrder(connection, orderId);
-            PaymentRecord payment = paymentDao.findByOrderId(connection, orderId);
-            BigDecimal refundAmount = shouldAutoRefund(order, payment) ? payment.getAmount() : BigDecimal.ZERO;
-            cancelOrRefundOrder(orderId, defaultEmployeeId, refundAmount, prefixCustomerReason(reason, "Customer cancellation"));
+            connection.setAutoCommit(false);
+            try {
+                int defaultEmployeeId = resolveProcessingEmployeeId(connection, null);
+                OrderSnapshot order = requireOrder(connection, orderId);
+                PaymentRecord payment = paymentDao.findByOrderId(connection, orderId);
+                String cancellationReason = prefixCustomerReason(reason, "Customer cancellation");
+
+                validateCancellationReason(cancellationReason);
+                validateCancellationState(order);
+
+                orderDao.updateStatus(connection, orderId, OrderStatus.CANCELLED);
+                orderStatusLogDao.insertStatusUpdate(
+                    connection,
+                    orderId,
+                    OrderStatus.CANCELLED,
+                    defaultEmployeeId,
+                    cancellationReason
+                );
+
+                if (shouldAutoRefund(order, payment)) {
+                    paymentDao.markRefunded(connection, orderId);
+                    refundDao.insertRefund(connection, orderId, payment.getPaymentId(), payment.getAmount(), cancellationReason);
+                }
+
+                connection.commit();
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         }
     }
 
@@ -251,6 +290,55 @@ public class OrderService {
     public List<OrderWorkflowView> getDeliveryQueue() throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             return orderDao.findDeliveryQueue(connection);
+        }
+    }
+
+    public List<OrderWorkflowView> getCollectionQueue() throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return orderDao.findCollectionQueue(connection);
+        }
+    }
+
+    public void completeCollectionOrder(int orderId, int updatedByEmployeeId) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                validateEmployee(connection, updatedByEmployeeId);
+                OrderSnapshot order = requireOrder(connection, orderId);
+                if (order.getOrderType() == OrderType.CAMPUS_GATE_DELIVERY) {
+                    throw new IllegalArgumentException("Campus-gate delivery orders must use delivery fulfillment.");
+                }
+                if (order.getOrderStatus() != OrderStatus.READY) {
+                    throw new IllegalArgumentException("Only READY dine-in or pick-up orders can be completed.");
+                }
+
+                PaymentRecord payment = paymentDao.findByOrderId(connection, orderId);
+                if (payment != null && "PENDING".equalsIgnoreCase(payment.getStatus())) {
+                    paymentDao.markPaid(connection, orderId);
+                    orderStatusLogDao.insertStatusUpdate(
+                        connection,
+                        orderId,
+                        OrderStatus.PAID,
+                        updatedByEmployeeId,
+                        "Cash payment received upon collection"
+                    );
+                }
+
+                orderDao.markCompleted(connection, orderId, OrderStatus.COMPLETED, LocalDateTime.now());
+                orderStatusLogDao.insertStatusUpdate(
+                    connection,
+                    orderId,
+                    OrderStatus.COMPLETED,
+                    updatedByEmployeeId,
+                    "Order claimed / served"
+                );
+                connection.commit();
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         }
     }
 
@@ -322,6 +410,9 @@ public class OrderService {
 
     private boolean shouldAutoRefund(OrderSnapshot order, PaymentRecord payment) {
         if (payment == null) {
+            return false;
+        }
+        if (!"PAID".equalsIgnoreCase(payment.getStatus())) {
             return false;
         }
         if ("REFUNDED".equalsIgnoreCase(payment.getStatus())) {

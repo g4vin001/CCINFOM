@@ -96,6 +96,9 @@ public class SwingApp {
     private JTextField deliveryEmployeeIdField;
     private JComboBox<OrderStatus> deliveryStatusComboBox;
     private JTextField deliveryNotesField;
+    private JTextArea collectionQueueArea;
+    private JTextField collectionOrderIdField;
+    private JTextField collectionEmployeeIdField;
 
     private JTextArea cancellationQueueArea;
     private JTextField refundOrderIdField;
@@ -177,7 +180,7 @@ public class SwingApp {
         heading.setForeground(CREAM);
         heading.setFont(new Font("Serif", Font.BOLD, 28));
 
-        JLabel subheading = new JLabel("Cafe Ordering and Reports");
+        JLabel subheading = new JLabel("Where Coffee Keeps You Grounded.");
         subheading.setForeground(new Color(220, 228, 218));
         subheading.setFont(new Font("SansSerif", Font.PLAIN, 14));
 
@@ -442,6 +445,7 @@ public class SwingApp {
     private JPanel buildStatusPanel() {
         JPanel wrapper = new JPanel();
         wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
+        wrapper.setBackground(CREAM);
 
         preparationQueueArea = createReadOnlyTextArea(6);
         JPanel queuePanel = createInfoPanel("Paid / Preparing Orders", preparationQueueArea);
@@ -479,6 +483,20 @@ public class SwingApp {
         styleButton(deliveryButton);
         addField(deliveryPanel, 4, "", deliveryButton);
 
+        collectionQueueArea = createReadOnlyTextArea(6);
+        JPanel collectionQueuePanel = createInfoPanel("Ready Dine-In / Pick-Up Orders", collectionQueueArea);
+
+        collectionOrderIdField = new JTextField();
+        collectionEmployeeIdField = new JTextField();
+        JPanel collectionPanel = createFormPanel();
+        collectionPanel.setBorder(BorderFactory.createTitledBorder("Complete Dine-In / Pick-Up Order"));
+        addField(collectionPanel, 0, "Order ID", collectionOrderIdField);
+        addField(collectionPanel, 1, "Employee ID", collectionEmployeeIdField);
+        JButton collectionButton = new JButton("Mark Completed");
+        collectionButton.addActionListener(event -> completeCollectionOrder());
+        styleButton(collectionButton);
+        addField(collectionPanel, 2, "", collectionButton);
+
         wrapper.add(queuePanel);
         wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(readyPanel);
@@ -486,10 +504,17 @@ public class SwingApp {
         wrapper.add(deliveryQueuePanel);
         wrapper.add(Box.createVerticalStrut(12));
         wrapper.add(deliveryPanel);
+        wrapper.add(Box.createVerticalStrut(12));
+        wrapper.add(collectionQueuePanel);
+        wrapper.add(Box.createVerticalStrut(12));
+        wrapper.add(collectionPanel);
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(CREAM);
-        panel.add(wrapper, BorderLayout.NORTH);
+        JScrollPane scrollPane = new JScrollPane(wrapper);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
     }
 
@@ -680,6 +705,25 @@ public class SwingApp {
         }
     }
 
+    private void completeCollectionOrder() {
+        try {
+            int orderId = parseInt(collectionOrderIdField.getText(), "Order ID");
+            int employeeId = parseInt(collectionEmployeeIdField.getText(), "Employee ID");
+            executeInBackground(
+                () -> {
+                    orderService.completeCollectionOrder(orderId, employeeId);
+                    return null;
+                },
+                ignored -> {
+                    showMessage("Order updated to COMPLETED.");
+                    refreshWorkflowQueues();
+                }
+            );
+        } catch (IllegalArgumentException exception) {
+            showError(exception);
+        }
+    }
+
     private void cancelOrRefundOrder() {
         try {
             BigDecimal refundAmount = new BigDecimal(refundAmountField.getText().trim());
@@ -819,6 +863,7 @@ public class SwingApp {
     private void refreshWorkflowQueues() {
         refreshPreparationQueue();
         refreshDeliveryQueue();
+        refreshCollectionQueue();
         refreshCancellationQueue();
     }
 
@@ -833,6 +878,13 @@ public class SwingApp {
         executeInBackground(
             orderService::getDeliveryQueue,
             orders -> deliveryQueueArea.setText(formatWorkflowOrders(orders, true))
+        );
+    }
+
+    private void refreshCollectionQueue() {
+        executeInBackground(
+            orderService::getCollectionQueue,
+            orders -> collectionQueueArea.setText(formatWorkflowOrders(orders, false))
         );
     }
 

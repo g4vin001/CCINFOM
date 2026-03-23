@@ -171,6 +171,26 @@ public class OrderDao {
             WHERE o.order_type = 'CAMPUS_GATE_DELIVERY'
               AND o.order_status IN ('READY', 'OUT_FOR_DELIVERY')
             ORDER BY o.order_datetime DESC
+        """;
+        return findWorkflowOrders(connection, sql);
+    }
+
+    public List<OrderWorkflowView> findCollectionQueue(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                o.order_id,
+                o.order_datetime,
+                o.order_type,
+                o.order_status,
+                o.total_amount,
+                CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+                g.gate_name
+            FROM orders o
+            INNER JOIN customers c ON c.customer_id = o.customer_id
+            LEFT JOIN gates g ON g.gate_id = o.gate_id
+            WHERE o.order_type IN ('DINE_IN', 'PICK_UP')
+              AND o.order_status = 'READY'
+            ORDER BY o.order_datetime DESC
             """;
         return findWorkflowOrders(connection, sql);
     }

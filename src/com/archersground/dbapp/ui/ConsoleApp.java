@@ -38,8 +38,9 @@ public class ConsoleApp {
                     case "2" -> placeOrder();
                     case "3" -> markOrderReady();
                     case "4" -> updateDeliveryStatus();
-                    case "5" -> cancelOrRefundOrder();
-                    case "6" -> generateReports();
+                    case "5" -> completeCollectionOrder();
+                    case "6" -> cancelOrRefundOrder();
+                    case "7" -> generateReports();
                     case "0" -> running = false;
                     default -> System.out.println("Invalid option.");
                 }
@@ -56,8 +57,9 @@ public class ConsoleApp {
         System.out.println("2. Place online order and process payment");
         System.out.println("3. Update order preparation status");
         System.out.println("4. Campus-gate delivery fulfillment");
-        System.out.println("5. Cancel or refund order");
-        System.out.println("6. Generate reports");
+        System.out.println("5. Complete dine-in / pick-up order");
+        System.out.println("6. Cancel or refund order");
+        System.out.println("7. Generate reports");
         System.out.println("0. Exit");
         System.out.print("Select option: ");
     }
@@ -146,6 +148,15 @@ public class ConsoleApp {
         String notes = scanner.nextLine().trim();
         orderService.updateDeliveryStatus(orderId, status, employeeId, notes);
         System.out.println("Delivery status updated.");
+    }
+
+    private void completeCollectionOrder() throws SQLException {
+        System.out.print("Order ID: ");
+        int orderId = Integer.parseInt(scanner.nextLine().trim());
+        System.out.print("Employee ID completing the order: ");
+        int employeeId = Integer.parseInt(scanner.nextLine().trim());
+        orderService.completeCollectionOrder(orderId, employeeId);
+        System.out.println("Order updated to COMPLETED.");
     }
 
     private void cancelOrRefundOrder() throws SQLException {

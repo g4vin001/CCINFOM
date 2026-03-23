@@ -11,15 +11,34 @@ import java.sql.SQLException;
 
 public class PaymentDao {
     public void insertPayment(Connection connection, int orderId, PaymentMethod paymentMethod, BigDecimal amount) throws SQLException {
+        insertPayment(connection, orderId, paymentMethod, amount, "PAID");
+    }
+
+    public void insertPayment(
+        Connection connection,
+        int orderId,
+        PaymentMethod paymentMethod,
+        BigDecimal amount,
+        String paymentStatus
+    ) throws SQLException {
         String sql = """
             INSERT INTO payments (order_id, payment_method, payment_amount, payment_status)
-            VALUES (?, ?, ?, 'PAID')
+            VALUES (?, ?, ?, ?)
             """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, orderId);
             statement.setString(2, paymentMethod.name());
             statement.setBigDecimal(3, amount);
+            statement.setString(4, paymentStatus);
+            statement.executeUpdate();
+        }
+    }
+
+    public void markPaid(Connection connection, int orderId) throws SQLException {
+        String sql = "UPDATE payments SET payment_status = 'PAID' WHERE order_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, orderId);
             statement.executeUpdate();
         }
     }
