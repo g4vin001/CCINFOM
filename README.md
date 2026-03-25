@@ -89,21 +89,9 @@ javac -cp "lib\mysql-connector-j-9.6.0\mysql-connector-j-9.6.0.jar" -d out (Get-
 
 ## How To Run
 
-After compiling, run:
-
 ```powershell
 java -cp "out;lib\mysql-connector-j-9.6.0\mysql-connector-j-9.6.0.jar" com.archersground.dbapp.Main
 ```
-
-This launches the Swing GUI.
-
-## Logo In Header
-
-To show a logo beside the `Archer's Ground` title in the Swing app header, place your image here:
-
-- `assets/archers-ground-logo.png`
-
-The app will load it automatically if the file exists.
 
 ## Recommended Run Order
 
